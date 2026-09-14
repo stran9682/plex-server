@@ -3,10 +3,10 @@ use std::{
     fs::{self, DirEntry},
 };
 
-use anyhow::{Context, bail};
-use iroh::{EndpointId, endpoint::SendStream};
+use anyhow::{bail, Context};
+use iroh::{endpoint::SendStream, EndpointId};
 use iroh_blobs::HashAndFormat;
-use rs_merkle::{MerkleProof, MerkleTree, algorithms::Sha256};
+use rs_merkle::{algorithms::Sha256, MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
 use tempfile::tempfile;
 use tokio::{
@@ -16,7 +16,7 @@ use tokio::{
 use tokio_util::io::ReaderStream;
 
 use crate::{
-    ALPN, Status, iroh::iroh_mem_instance::IrohMemInstance, protocol::access_control::Request,
+    iroh::iroh_mem_instance::IrohMemInstance, protocol::access_control::Request, Status, ALPN,
 };
 
 #[derive(Debug, Clone)]

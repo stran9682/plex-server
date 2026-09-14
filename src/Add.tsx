@@ -1,18 +1,25 @@
 import "./App.css"
-
-function AddTicket () {
-    
-}
+import { invoke } from '@tauri-apps/api/core';
+import { useState } from "react";
 
 function Add() {
-    return <div>
-        <div>
-            <h3>Sync local store with peer</h3>
-        </div>
+    const [ticket, setTicket] = useState<string>("")
 
-        <div>
-            <h3>Add an external store</h3>
-        </div>
+    const importTicket = (ticket: string) => {
+        invoke('import_ticket', {ticket: ticket})
+            .catch((error) => console.error(error))
+    }
+
+    return <div>
+        <input 
+            type="text"
+            value={ticket} 
+            onChange={(e) => setTicket(e.target.value)} 
+        />
+
+        <button disabled= {ticket === ""} onClick={() => importTicket(ticket)}>
+            Import ticket
+        </button>
     </div>
 }
 

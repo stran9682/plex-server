@@ -1,6 +1,8 @@
+use std::str::FromStr;
+
 use iroh::{endpoint::presets, protocol::Router, Endpoint};
 use iroh_blobs::{store::mem::MemStore, BlobsProtocol, ALPN as BLOBS_ALPN};
-use iroh_docs::{protocol::Docs, ALPN as DOCS_ALPN};
+use iroh_docs::{protocol::Docs, DocTicket, ALPN as DOCS_ALPN};
 use iroh_gossip::{Gossip, ALPN as GOSSIP_ALPN};
 
 use crate::{
@@ -53,5 +55,12 @@ impl IrohRuntime {
             router,
             access_control,
         })
+    }
+
+    pub async fn import_ticket(&self, ticket: String) -> anyhow::Result<()> {
+        let doc_ticket = DocTicket::from_str(&ticket)?;
+        self.access_control.import(doc_ticket).await?;
+
+        Ok(())
     }
 }

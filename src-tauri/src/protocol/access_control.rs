@@ -1,15 +1,15 @@
 use anyhow::bail;
 use iroh::{
-    EndpointId,
     endpoint::{RecvStream, SendStream},
     protocol::ProtocolHandler,
+    EndpointId,
 };
-use iroh_docs::{DocTicket, api::Doc};
+use iroh_docs::{api::Doc, DocTicket};
 use serde::{Deserialize, Serialize};
 use tokio::fs::File;
 
 use crate::{
-    Status, access_list::list_manager::AccessListManager, store::storage_manager::StorageManager,
+    access_list::list_manager::AccessListManager, store::storage_manager::StorageManager, Status,
 };
 
 #[derive(Debug, Clone)]

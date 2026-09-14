@@ -1,6 +1,7 @@
 import { useState } from "react";
 import "./App.css";
 import Add from "./Add";
+import VideosPage from "./Videos";
 
 enum Page {
   Videos = "Videos",
@@ -13,7 +14,7 @@ function App() {
   const renderContent = () => {
     switch (currentPage) {
       case Page.Videos:
-        return <div>Hi</div>
+        return <VideosPage/>
       case Page.Add:
         return <Add/>
     }

@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use iroh::EndpointId;
-use iroh_docs::{DocTicket, NamespaceId, api::Doc, engine::LiveEvent, store::Query};
+use iroh_docs::{api::Doc, engine::LiveEvent, store::Query, DocTicket, NamespaceId};
 use tokio_stream::StreamExt;
 
 use crate::iroh::iroh_mem_instance::IrohMemInstance;
@@ -92,6 +92,8 @@ impl AccessListManager {
 
         Ok(None)
     }
+
+    pub async fn get_authorized_videos(&self, namespace: &str) {}
 
     async fn query_for_tag(
         &self,

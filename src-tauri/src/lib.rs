@@ -10,6 +10,7 @@ mod protocol;
 mod store;
 
 pub const ALPN: &[u8] = b"gate";
+pub const DISCOVERY_ALPN: &[u8] = b"discovery";
 
 #[repr(u8)]
 #[derive(Debug)]

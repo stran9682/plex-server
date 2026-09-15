@@ -1,7 +1,8 @@
-use std::collections::HashSet;
 use std::str::FromStr;
+use std::{any, collections::HashSet};
 
 use iroh::EndpointId;
+use iroh_docs::Entry;
 use iroh_docs::{api::Doc, engine::LiveEvent, store::Query, DocTicket, NamespaceId};
 use tokio_stream::StreamExt;
 
@@ -93,7 +94,49 @@ impl AccessListManager {
         Ok(None)
     }
 
-    pub async fn get_authorized_videos(&self, namespace: &str) {}
+    pub async fn get_authorized_videos(
+        &self,
+        namespace: &str,
+        endpoint_id: &EndpointId,
+    ) -> anyhow::Result<Option<Vec<String>>> {
+        if let Some(doc) = self
+            .iroh_instance
+            .docs()
+            .open(NamespaceId::from_str(namespace)?)
+            .await?
+        {
+            let entries = doc.get_many(Query::single_latest_per_key().build()).await?;
+            let mut entries: Vec<Result<Entry, anyhow::Error>> = entries.collect().await;
+            let mut entries = entries.iter_mut();
+
+            let mut authorized_videos: Vec<String> = Vec::new();
+
+            while let Some(Ok(entry)) = entries.next() {
+                if let Ok(bytes) = self
+                    .iroh_instance
+                    .blobs()
+                    .get_bytes(entry.content_hash())
+                    .await
+                {
+                    let Ok(acl) = serde_json::from_slice::<HashSet<EndpointId>>(&bytes) else {
+                        continue;
+                    };
+
+                    if acl.contains(endpoint_id) {
+                        let Ok(tag) = String::from_utf8(entry.key().to_vec()) else {
+                            continue;
+                        };
+
+                        authorized_videos.push(tag);
+                    }
+                }
+            }
+
+            return Ok(Some(authorized_videos));
+        } else {
+            return Ok(None);
+        }
+    }
 
     async fn query_for_tag(
         &self,

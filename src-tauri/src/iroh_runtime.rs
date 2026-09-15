@@ -6,8 +6,11 @@ use iroh_docs::{protocol::Docs, DocTicket, ALPN as DOCS_ALPN};
 use iroh_gossip::{Gossip, ALPN as GOSSIP_ALPN};
 
 use crate::{
-    access_list::list_manager::AccessListManager, iroh::iroh_mem_instance::IrohMemInstance,
-    protocol::access_control::AccessControl, store::storage_manager::StorageManager, ALPN,
+    access_list::list_manager::AccessListManager,
+    iroh::iroh_mem_instance::IrohMemInstance,
+    protocol::{access_control::AccessControl, video_discovery::VideoDiscovery},
+    store::storage_manager::StorageManager,
+    ALPN, DISCOVERY_ALPN,
 };
 
 pub struct IrohRuntime {
@@ -33,6 +36,7 @@ impl IrohRuntime {
             IrohMemInstance::new(access_list_blobs.clone(), docs.clone(), endpoint.clone());
 
         let list_manager = AccessListManager::new(acl_iroh_instance);
+        let video_discovery = VideoDiscovery::new(list_manager.clone());
 
         let storage_blobs = MemStore::new();
         let storage_iroh_instance =
@@ -49,6 +53,7 @@ impl IrohRuntime {
             .accept(GOSSIP_ALPN, gossip)
             .accept(BLOBS_ALPN, BlobsProtocol::new(&access_list_blobs, None))
             .accept(ALPN, access_control.clone())
+            .accept(DISCOVERY_ALPN, video_discovery)
             .spawn();
 
         Ok(Self {

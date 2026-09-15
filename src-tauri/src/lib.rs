@@ -3,6 +3,7 @@ use tauri::Manager;
 use crate::iroh_runtime::IrohRuntime;
 
 mod access_list;
+mod discovery;
 mod ipc;
 mod iroh;
 mod iroh_runtime;

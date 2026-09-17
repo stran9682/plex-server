@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use iroh::{endpoint::presets, protocol::Router, Endpoint};
+use iroh::{endpoint::presets, protocol::Router, Endpoint, EndpointId};
 use iroh_blobs::{store::mem::MemStore, BlobsProtocol, ALPN as BLOBS_ALPN};
 use iroh_docs::{protocol::Docs, DocTicket, ALPN as DOCS_ALPN};
 use iroh_gossip::{Gossip, ALPN as GOSSIP_ALPN};
@@ -12,7 +12,7 @@ use crate::{
     iroh::iroh_mem_instance::IrohMemInstance,
     protocol::{access_control::AccessControl, video_discovery::VideoDiscovery},
     store::storage_manager::StorageManager,
-    ALPN, DISCOVERY_ALPN,
+    Error, ALPN, DISCOVERY_ALPN,
 };
 
 pub struct IrohRuntime {
@@ -66,14 +66,18 @@ impl IrohRuntime {
         })
     }
 
-    pub async fn import_ticket(&self, ticket: String) -> anyhow::Result<()> {
-        let doc_ticket = DocTicket::from_str(&ticket)?;
-        self.access_control.import(doc_ticket).await?;
+    pub async fn import_ticket(&self, ticket: String) -> Result<(), Error> {
+        let doc_ticket =
+            DocTicket::from_str(&ticket).map_err(|e| Error::InputErr(e.to_string()))?;
+        self.access_control
+            .import(doc_ticket)
+            .await
+            .map_err(|e| Error::IrohErr(e.to_string()))?;
 
         Ok(())
     }
 
-    pub async fn add_remote_store(&self, endpoint: String, topic: String) -> anyhow::Result<()> {
+    pub async fn add_remote_store(&self, endpoint: String, topic: String) -> Result<(), Error> {
         topic::ActiveModelEx {
             topic: Set(topic),
             addresses: ActiveHasMany::Append(vec![address::ActiveModelEx {
@@ -88,13 +92,28 @@ impl IrohRuntime {
         Ok(())
     }
 
-    pub async fn get_videos(&self, topic: String) {
-        if let Ok(topic) = topic::Entity::find_by_topic(topic)
+    pub async fn get_authorized_videos(&self, topic: String) -> Result<Option<Vec<String>>, Error> {
+        let topic: Vec<(topic::Model, Vec<address::Model>)> = topic::Entity::find_by_topic(topic)
             .find_with_related(address::Entity)
             .all(&self.db)
-            .await
-        {}
+            .await?;
 
-        todo!()
+        let (namespace, addresses) = &topic[0];
+
+        for address in addresses {
+            let endpoint = EndpointId::from_str(&address.endpoint)
+                .map_err(|e| Error::InputErr(e.to_string()))?;
+
+            if let Some(videos) = self
+                .access_control
+                .get_authorized_videos(&namespace.topic, &endpoint)
+                .await
+                .map_err(|e| Error::IrohErr(e.to_string()))?
+            {
+                return Ok(Some(videos));
+            }
+        }
+
+        Ok(None)
     }
 }

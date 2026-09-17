@@ -1,5 +1,5 @@
 use anyhow::Context;
-use sea_orm::Database;
+use sea_orm::{Database, DbErr};
 use tauri::Manager;
 
 use crate::iroh_runtime::IrohRuntime;
@@ -40,6 +40,42 @@ impl TryFrom<u8> for Status {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error(transparent)]
+    DatabaseErr(#[from] DbErr),
+
+    #[error("Data has invalid format, {0}")]
+    InputErr(String),
+
+    #[error("Iroh had an error, {0}")]
+    IrohErr(String),
+}
+
+#[derive(serde::Serialize)]
+#[serde(tag = "kind", content = "message")]
+#[serde(rename_all = "camelCase")]
+enum ErrorKind {
+    DatabaseErr(String),
+    IrohErr(String),
+    InputErr(String),
+}
+
+impl serde::Serialize for Error {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        let error_message = self.to_string();
+        let error_kind = match self {
+            Self::DatabaseErr(_) => ErrorKind::DatabaseErr(error_message),
+            Self::IrohErr(_) => ErrorKind::IrohErr(error_message),
+            Self::InputErr(_) => ErrorKind::InputErr(error_message),
+        };
+        error_kind.serialize(serializer)
+    }
+}
+
 async fn setup(app_handle: tauri::AppHandle) -> anyhow::Result<()> {
     let path = app_handle.path().app_data_dir()?;
     let db = Database::connect(format!(
@@ -70,7 +106,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             ipc::import_ticket,
-            ipc::add_remote_store
+            ipc::add_remote_store,
+            ipc::get_authorized_videos,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

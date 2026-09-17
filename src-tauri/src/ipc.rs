@@ -1,16 +1,13 @@
-use crate::iroh_runtime::IrohRuntime;
+use crate::{iroh_runtime::IrohRuntime, Error};
 
 #[tauri::command]
 pub async fn import_ticket(
     ticket: String,
     state: tauri::State<'_, IrohRuntime>,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let iroh_runtime = state.inner();
 
-    iroh_runtime
-        .import_ticket(ticket)
-        .await
-        .map_err(|err| err.to_string())?;
+    iroh_runtime.import_ticket(ticket).await?;
 
     Ok(())
 }
@@ -20,13 +17,20 @@ pub async fn add_remote_store(
     endpoint: String,
     topic: String,
     state: tauri::State<'_, IrohRuntime>,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let iroh_runtime = state.inner();
 
-    iroh_runtime
-        .add_remote_store(endpoint, topic)
-        .await
-        .map_err(|err| err.to_string())?;
+    iroh_runtime.add_remote_store(endpoint, topic).await?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_authorized_videos(
+    namespace: String,
+    state: tauri::State<'_, IrohRuntime>,
+) -> Result<Option<Vec<String>>, Error> {
+    let iroh_runtime = state.inner();
+
+    Ok(iroh_runtime.get_authorized_videos(namespace).await?)
 }

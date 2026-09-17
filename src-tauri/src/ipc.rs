@@ -14,3 +14,19 @@ pub async fn import_ticket(
 
     Ok(())
 }
+
+#[tauri::command]
+pub async fn add_remote_store(
+    endpoint: String,
+    topic: String,
+    state: tauri::State<'_, IrohRuntime>,
+) -> Result<(), String> {
+    let iroh_runtime = state.inner();
+
+    iroh_runtime
+        .add_remote_store(endpoint, topic)
+        .await
+        .map_err(|err| err.to_string())?;
+
+    Ok(())
+}

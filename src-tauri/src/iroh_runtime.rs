@@ -4,9 +4,11 @@ use iroh::{endpoint::presets, protocol::Router, Endpoint};
 use iroh_blobs::{store::mem::MemStore, BlobsProtocol, ALPN as BLOBS_ALPN};
 use iroh_docs::{protocol::Docs, DocTicket, ALPN as DOCS_ALPN};
 use iroh_gossip::{Gossip, ALPN as GOSSIP_ALPN};
+use sea_orm::{ActiveHasMany, ActiveValue::Set, DatabaseConnection};
 
 use crate::{
     access_list::list_manager::AccessListManager,
+    entities::{address, topic},
     iroh::iroh_mem_instance::IrohMemInstance,
     protocol::{access_control::AccessControl, video_discovery::VideoDiscovery},
     store::storage_manager::StorageManager,
@@ -14,12 +16,13 @@ use crate::{
 };
 
 pub struct IrohRuntime {
-    router: Router,
+    _router: Router,
     access_control: AccessControl,
+    db: DatabaseConnection,
 }
 
 impl IrohRuntime {
-    pub async fn new() -> anyhow::Result<Self> {
+    pub async fn new(db: DatabaseConnection) -> anyhow::Result<Self> {
         let endpoint = Endpoint::bind(presets::N0).await?;
         let access_list_blobs = MemStore::new();
         let gossip = Gossip::builder().spawn(endpoint.clone());
@@ -48,7 +51,7 @@ impl IrohRuntime {
 
         println!("Endpoint: {}", endpoint.id());
 
-        let router = Router::builder(endpoint)
+        let _router = Router::builder(endpoint)
             .accept(DOCS_ALPN, docs)
             .accept(GOSSIP_ALPN, gossip)
             .accept(BLOBS_ALPN, BlobsProtocol::new(&access_list_blobs, None))
@@ -57,8 +60,9 @@ impl IrohRuntime {
             .spawn();
 
         Ok(Self {
-            router,
+            _router,
             access_control,
+            db,
         })
     }
 
@@ -67,5 +71,30 @@ impl IrohRuntime {
         self.access_control.import(doc_ticket).await?;
 
         Ok(())
+    }
+
+    pub async fn add_remote_store(&self, endpoint: String, topic: String) -> anyhow::Result<()> {
+        topic::ActiveModelEx {
+            topic: Set(topic),
+            addresses: ActiveHasMany::Append(vec![address::ActiveModelEx {
+                endpoint: Set(endpoint),
+                ..Default::default()
+            }]),
+            ..Default::default()
+        }
+        .save(&self.db)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_videos(&self, topic: String) {
+        if let Ok(topic) = topic::Entity::find_by_topic(topic)
+            .find_with_related(address::Entity)
+            .all(&self.db)
+            .await
+        {}
+
+        todo!()
     }
 }

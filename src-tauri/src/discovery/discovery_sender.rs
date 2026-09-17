@@ -18,14 +18,11 @@ impl GossipDiscoverySender {
     pub async fn gossip(&mut self, update_rate: Duration) -> anyhow::Result<()> {
         loop {
             // Check for new peers to join
-            match self.peer_rx.try_recv() {
-                Ok(peer) => {
-                    println!("Joining new peer {}", peer);
-                    if let Err(e) = self.sender.join_peers(vec![peer]).await {
-                        eprintln!("Failed to join peer {}", e);
-                    }
+            if let Ok(peer) = self.peer_rx.try_recv() {
+                println!("Joining new peer {}", peer);
+                if let Err(e) = self.sender.join_peers(vec![peer]).await {
+                    eprintln!("Failed to join peer {}", e);
                 }
-                Err(_) => {}
             }
 
             // Sign and encode the message

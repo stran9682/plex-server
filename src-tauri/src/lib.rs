@@ -1,9 +1,12 @@
+use anyhow::Context;
+use sea_orm::Database;
 use tauri::Manager;
 
 use crate::iroh_runtime::IrohRuntime;
 
 mod access_list;
 mod discovery;
+mod entities;
 mod ipc;
 mod iroh;
 mod iroh_runtime;
@@ -38,7 +41,14 @@ impl TryFrom<u8> for Status {
 }
 
 async fn setup(app_handle: tauri::AppHandle) -> anyhow::Result<()> {
-    let iroh = IrohRuntime::new().await?;
+    let path = app_handle.path().app_data_dir()?;
+    let db = Database::connect(format!(
+        "sqlite://{}db.sqlite?mode=rwc",
+        path.to_string_lossy()
+    ))
+    .await?;
+
+    let iroh = IrohRuntime::new(db).await?;
     app_handle.manage(iroh);
 
     Ok(())
@@ -58,7 +68,10 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![ipc::import_ticket])
+        .invoke_handler(tauri::generate_handler![
+            ipc::import_ticket,
+            ipc::add_remote_store
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

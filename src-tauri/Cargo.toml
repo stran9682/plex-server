@@ -35,6 +35,7 @@ iroh-gossip = "0.101.0"
 mime_guess = "2.0.5"
 rs_merkle = "1.5.0"
 sha256 = "1.6.0"
+sea-orm = { version = "2.0.0", features = [ "sqlx-sqlite", "runtime-tokio", "macros", "schema-sync", "entity-registry" ] }
 tempfile = "3.27.0"
 tokio = {version = "1", features = ["full"] }
 tokio-stream = "0.1.19"

@@ -178,6 +178,17 @@ impl AccessControl {
 
         Ok(())
     }
+
+    pub async fn get_authorized_videos(
+        &self,
+        namespace: &str,
+        endpoint_id: &EndpointId,
+    ) -> anyhow::Result<Option<Vec<String>>> {
+        Ok(self
+            .list_manager
+            .get_authorized_videos(namespace, endpoint_id)
+            .await?)
+    }
 }
 
 #[derive(Serialize, Deserialize)]

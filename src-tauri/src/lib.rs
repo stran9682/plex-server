@@ -101,6 +101,8 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
+                ffmpeg_sidecar::download::auto_download().unwrap();
+
                 match setup(app_handle).await {
                     Ok(iroh) => {
                         let app = Router::new()
@@ -124,7 +126,8 @@ pub fn run() {
             ipc::add_remote_store,
             ipc::get_authorized_videos,
             ipc::start_adding_topic_peers,
-            ipc::stop_adding_topic_peers
+            ipc::stop_adding_topic_peers,
+            ipc::add_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

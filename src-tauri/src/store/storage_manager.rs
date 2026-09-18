@@ -29,10 +29,6 @@ impl StorageManager {
         Self { iroh_instance }
     }
 
-    pub fn endpoint(&self) -> &iroh::Endpoint {
-        self.iroh_instance.endpoint()
-    }
-
     pub async fn retrieve_local(&self, resource: &str, filename: &str) -> anyhow::Result<File> {
         let mut file_writer = tokio::fs::File::from_std(tempfile()?);
 

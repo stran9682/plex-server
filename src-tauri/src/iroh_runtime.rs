@@ -1,14 +1,17 @@
-use std::str::FromStr;
 use std::sync::Arc;
+use std::{path::PathBuf, str::FromStr};
 
+use ffmpeg_sidecar::command::{ffmpeg_is_installed, FfmpegCommand};
 use iroh::{endpoint::presets, protocol::Router, Endpoint, EndpointId};
 use iroh_blobs::{store::mem::MemStore, BlobsProtocol, ALPN as BLOBS_ALPN};
 use iroh_docs::{protocol::Docs, DocTicket, ALPN as DOCS_ALPN};
 use iroh_gossip::{Gossip, ALPN as GOSSIP_ALPN};
 use sea_orm::{ActiveHasMany, ActiveValue::Set, DatabaseConnection};
 use serde::Deserialize;
+use tempfile::TempDir;
 use tokio::fs::File;
 
+use crate::Error::IrohErr;
 use crate::{
     access_list::list_manager::AccessListManager,
     discovery::discovery_service::DiscoveryService,
@@ -92,6 +95,46 @@ impl IrohRuntime {
             .import(doc_ticket)
             .await
             .map_err(|e| Error::IrohErr(e.to_string()))?;
+
+        Ok(())
+    }
+
+    pub async fn add_dir(
+        &self,
+        file_path: PathBuf,
+        namespace: Option<String>,
+    ) -> Result<(), Error> {
+        if !ffmpeg_is_installed() {
+            return Err(Error::InputErr("ffmpeg was not installed".to_string()));
+        }
+
+        let Some(filename) = file_path.file_name() else {
+            return Err(Error::InputErr("Filename was invalid".to_owned()));
+        };
+
+        let temp_dir = TempDir::new()
+            .map_err(|e| Error::InputErr(format!("Failed to create temp dir {e}")))?;
+
+        let args = format!(
+            "-codec: copy -start_number 0 -hls_time 10 -hls_list_size 0 -f hls {}/output.m3u8",
+            temp_dir.path().to_string_lossy()
+        );
+        let mut command = FfmpegCommand::new()
+            .input("")
+            .args(args.split(' '))
+            .spawn()
+            .unwrap();
+
+        command.iter().unwrap();
+
+        self.access_control
+            .upload_new(
+                &temp_dir.path().to_string_lossy(),
+                &filename.to_string_lossy(),
+                namespace.as_deref(),
+            )
+            .await
+            .map_err(|e| IrohErr(e.to_string()))?;
 
         Ok(())
     }

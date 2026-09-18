@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::{iroh_runtime::IrohRuntime, Error};
 
 #[tauri::command]
@@ -8,6 +10,19 @@ pub async fn import_ticket(
     let iroh_runtime = state.inner();
 
     iroh_runtime.import_ticket(ticket).await?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn add_dir(
+    file_path: PathBuf,
+    namespace: Option<String>,
+    state: tauri::State<'_, IrohRuntime>,
+) -> Result<(), Error> {
+    let iroh_runtime = state.inner();
+
+    iroh_runtime.add_dir(file_path, namespace).await?;
 
     Ok(())
 }

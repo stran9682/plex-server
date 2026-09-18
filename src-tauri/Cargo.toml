@@ -27,6 +27,7 @@ axum = "0.8.9"
 bytes = "1.12.1"
 dashmap = "6.2.1"
 ed25519-dalek = "3.0.0"
+ffmpeg-sidecar = { version = "2.5.2", features = ["download_ffmpeg"] }
 hex = "0.4.3"
 iroh = "1.1.0"
 iroh-blobs = "0.103.0"

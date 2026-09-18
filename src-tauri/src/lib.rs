@@ -1,4 +1,3 @@
-use anyhow::Context;
 use sea_orm::{Database, DbErr};
 use tauri::Manager;
 
@@ -11,6 +10,7 @@ mod ipc;
 mod iroh;
 mod iroh_runtime;
 mod protocol;
+mod server;
 mod store;
 
 pub const ALPN: &[u8] = b"gate";
@@ -85,6 +85,7 @@ async fn setup(app_handle: tauri::AppHandle) -> anyhow::Result<()> {
     .await?;
 
     let iroh = IrohRuntime::new(db).await?;
+
     app_handle.manage(iroh);
 
     Ok(())
@@ -108,6 +109,8 @@ pub fn run() {
             ipc::import_ticket,
             ipc::add_remote_store,
             ipc::get_authorized_videos,
+            ipc::start_adding_topic_peers,
+            ipc::stop_adding_topic_peers
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

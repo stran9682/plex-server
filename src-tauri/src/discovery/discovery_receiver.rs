@@ -1,20 +1,21 @@
-use std::{sync::Arc, time::Duration};
+use std::collections::HashSet;
 
-use dashmap::DashMap;
 use iroh::EndpointId;
 use iroh_gossip::api::{Event, GossipReceiver};
-use tokio::{
-    sync::mpsc::UnboundedSender,
-    time::{Instant, sleep},
-};
+use sea_orm::{ActiveValue::Set, DbConn, IntoActiveModel};
+use tokio::sync::mpsc::UnboundedSender;
 use tokio_stream::StreamExt;
 
-use crate::discovery::SignedMessage;
+use crate::{
+    discovery::SignedMessage,
+    entities::{address, topic},
+};
 
-pub async fn update_map(
+pub async fn update_list(
     receiver: &mut GossipReceiver,
-    neighbors_last_seen: Arc<DashMap<EndpointId, Instant>>,
-    peer_tx: UnboundedSender<EndpointId>,
+    peer_tx: Option<UnboundedSender<EndpointId>>,
+    mut bootstrap: HashSet<EndpointId>,
+    db: &DbConn,
 ) -> anyhow::Result<()> {
     while let Some(res) = receiver.next().await {
         match res {
@@ -38,18 +39,48 @@ pub async fn update_map(
                     continue;
                 }
 
-                let is_new_peer = !neighbors_last_seen.contains_key(&expected_node_id);
+                let is_new_peer = !bootstrap.contains(&expected_node_id);
 
                 if is_new_peer {
                     // Send new peer to sender for joining
-                    peer_tx.send(address_info.node_id)?;
+                    if let Some(ref tx) = peer_tx {
+                        tx.send(address_info.node_id)?;
+                    }
                     println!("Discovered new peer");
 
-                    todo!("Add to store")
-                }
+                    bootstrap.insert(expected_node_id);
 
-                neighbors_last_seen.insert(expected_node_id, Instant::now());
-                println!("Address book updated, {}", neighbors_last_seen.len());
+                    let endpoint =
+                        match address::Entity::find_by_endpoint(expected_node_id.to_string())
+                            .one(db)
+                            .await?
+                        {
+                            Some(endpoint) => {
+                                let endpoint = endpoint.into_active_model();
+                                endpoint.into_ex()
+                            }
+                            None => address::ActiveModelEx {
+                                endpoint: Set(expected_node_id.to_string()),
+                                ..Default::default()
+                            },
+                        };
+
+                    let topic = match topic::Entity::find_by_topic(&address_info.topic_id)
+                        .one(db)
+                        .await?
+                    {
+                        Some(topic) => {
+                            let topic = topic.into_active_model();
+                            topic.into_ex()
+                        }
+                        None => topic::ActiveModelEx {
+                            topic: Set(address_info.topic_id),
+                            ..Default::default()
+                        },
+                    };
+
+                    topic.add_address(endpoint).save(db).await?;
+                }
             }
             Ok(_) => {}
             Err(e) => {
@@ -58,42 +89,4 @@ pub async fn update_map(
         }
     }
     Ok(())
-}
-
-pub async fn start_cleanup_task(
-    neighbor_map: Arc<DashMap<EndpointId, Instant>>,
-    expiration_timeout: Duration,
-) {
-    let cleanup_interval = expiration_timeout / 3; // Check every 1/3 of timeout period
-
-    loop {
-        sleep(cleanup_interval).await;
-
-        let now = Instant::now();
-        let mut expired_count = 0;
-
-        // Collect expired node names first to avoid holding locks
-        let expired_nodes: Vec<EndpointId> = neighbor_map
-            .iter()
-            .filter_map(|entry| {
-                if now.duration_since(*entry.value()) > expiration_timeout {
-                    Some(entry.key().clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        // Remove expired nodes
-        for endpoint_id in expired_nodes {
-            if let Some(_) = neighbor_map.remove(&endpoint_id) {
-                println!("Expired node: {}", endpoint_id);
-                expired_count += 1;
-            }
-        }
-
-        if expired_count > 0 {
-            println!("Cleaned up expired nodes, {}", expired_count);
-        }
-    }
 }

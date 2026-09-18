@@ -1,22 +1,24 @@
-use std::{collections::HashSet, str::FromStr, sync::Arc, time::Duration};
+use std::{collections::HashSet, str::FromStr, time::Duration};
 
-use anyhow::bail;
+use crate::{
+    entities::{address, topic},
+    Error,
+};
 use dashmap::DashMap;
 use ed25519_dalek::SigningKey;
-use iroh::{Endpoint, EndpointId};
-use iroh_gossip::{Gossip, TopicId};
-use tokio::time::Instant;
+use iroh::{Endpoint, EndpointId, PublicKey};
+use iroh_gossip::{api::GossipSender, Gossip, TopicId};
+use sea_orm::DbConn;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio_util::sync::CancellationToken;
 
-use crate::discovery::{AddressInfo, discovery_receiver, discovery_sender::GossipDiscoverySender};
+use crate::discovery::{discovery_receiver, discovery_sender::GossipDiscoverySender, AddressInfo};
 
 #[derive(Debug, Clone)]
 pub struct DiscoveryService {
     endpoint: Endpoint,
     gossip: Gossip,
-
-    /// I'm so sorry
-    /// topic -> (EndpointId -> Last seen time)
-    active_peers: Arc<DashMap<TopicId, Arc<DashMap<EndpointId, Instant>>>>,
+    task_tracker: DashMap<String, CancellationToken>,
 }
 
 impl DiscoveryService {
@@ -24,44 +26,85 @@ impl DiscoveryService {
         Self {
             endpoint,
             gossip,
-            active_peers: Arc::new(DashMap::new()),
+            task_tracker: DashMap::new(),
         }
     }
 
-    pub async fn get_topic_peers(
-        &self,
-        topic_id: &str,
-    ) -> anyhow::Result<Option<HashSet<EndpointId>>> {
-        let topic_id = TopicId::from_str(topic_id)?;
-
-        let Some(peers) = self.active_peers.get(&topic_id) else {
-            return Ok(None);
-        };
-
-        let active_peers: HashSet<EndpointId> = peers.iter().map(|x| x.key().clone()).collect();
-
-        return Ok(Some(active_peers));
+    pub fn cancel_topic(&self, topic_id: &str) -> bool {
+        if let Some(token) = self.task_tracker.get(topic_id) {
+            token.cancel();
+            true
+        } else {
+            false
+        }
     }
 
-    pub async fn emit_topic(
-        &self,
-        topic_id: &str,
-        bootstrap: Vec<EndpointId>,
-    ) -> anyhow::Result<()> {
-        let topic_id = TopicId::from_str(topic_id)?;
+    pub async fn emit_topic(&self, topic_id: &str, db: &DbConn, emit: bool) -> Result<(), Error> {
+        let entry = topic::Entity::find_by_topic(topic_id)
+            .find_with_related(address::Entity)
+            .all(db)
+            .await?;
 
-        if self.active_peers.contains_key(&topic_id) {
-            bail!("Already subscribed to the gossip topic.")
-        }
+        let (_, addresses) = &entry[0];
+
+        let bootstrap: Vec<EndpointId> = addresses
+            .iter()
+            .filter_map(|i| EndpointId::from_str(&i.endpoint).ok())
+            .collect();
+
+        let topic = TopicId::from_str(topic_id).map_err(|e| Error::InputErr(e.to_string()))?;
 
         // Setting up subscribing to the gossip topic.
-        let (sender, mut receiver) = self.gossip.subscribe(topic_id, bootstrap).await?.split();
+        let (sender, mut receiver) = self
+            .gossip
+            .subscribe(topic, bootstrap.clone())
+            .await
+            .map_err(|e| Error::IrohErr(e.to_string()))?
+            .split();
 
+        let token = CancellationToken::new();
+        self.task_tracker
+            .insert(topic_id.to_string(), token.clone());
+        let send_token = token.clone();
+
+        let peer_rx = if emit {
+            let peer_tx = self.emit(&topic_id.to_string(), sender, send_token);
+
+            Some(peer_tx)
+        } else {
+            None
+        };
+
+        let conn = db.clone();
+        tokio::spawn(async move {
+            tokio::select! {
+                res = discovery_receiver::update_list(
+                    &mut receiver,
+                    peer_rx,
+                    bootstrap.iter().cloned().collect::<HashSet<EndpointId>>(),
+                    &conn
+                ) => {
+                    match res {
+                        Ok(_) => { println!("The gossip receiver is no longer receiving messages"); },
+                        Err(e) => { eprintln!("An error occured during peer discovery: {}", e)}
+                    };
+                },
+                _ = token.cancelled() => {
+                    println!("Task cancelled")
+                }
+            }
+        });
+
+        Ok(())
+    }
+
+    fn emit(
+        &self,
+        topic_id: &str,
+        sender: GossipSender,
+        token: CancellationToken,
+    ) -> UnboundedSender<PublicKey> {
         let (peer_tx, peer_rx) = tokio::sync::mpsc::unbounded_channel::<EndpointId>();
-        let neighbors_last_seen = Arc::new(DashMap::<EndpointId, Instant>::new());
-        self.active_peers
-            .insert(topic_id, Arc::clone(&neighbors_last_seen));
-
         let node_secret = self.endpoint.secret_key();
         let secret_key_bytes = node_secret.to_bytes();
         let secret_key = SigningKey::from_bytes(&secret_key_bytes);
@@ -78,25 +121,15 @@ impl DiscoveryService {
             address_info,
         };
 
-        let neighbors_last_seen = Arc::clone(&neighbors_last_seen);
         tokio::spawn(async move {
             tokio::select! {
                 Err(e) = discovery_sender.gossip(Duration::from_secs(2)) => {
                     eprintln!("The signed message was invalid and couldn't be sent: {}", e)
-                }
-                _ = discovery_receiver::start_cleanup_task(
-                    Arc::clone(&neighbors_last_seen),
-                    Duration::from_secs(30),
-                ) => {},
-                res = discovery_receiver::update_map(&mut receiver, neighbors_last_seen, peer_tx)  => {
-                    match res {
-                        Ok(_) => { println!("The gossip receiver is no longer receiving messages"); },
-                        Err(e) => { eprintln!("An error occured during peer discovery: {}", e)}
-                    };
-                }
+                },
+                _ = token.cancelled() => ()
             }
         });
 
-        Ok(())
+        peer_tx
     }
 }

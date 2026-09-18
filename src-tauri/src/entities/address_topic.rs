@@ -9,9 +9,9 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub topic_id: i32,
     #[sea_orm(belongs_to, from = "address_id", to = "id")]
-    pub cake: BelongsTo<super::address::Entity>,
+    pub address: BelongsTo<super::address::Entity>,
     #[sea_orm(belongs_to, from = "topic_id", to = "id")]
-    pub filling: BelongsTo<super::topic::Entity>,
+    pub topic: BelongsTo<super::topic::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

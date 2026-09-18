@@ -8,6 +8,7 @@ use sea_orm::{ActiveHasMany, ActiveValue::Set, DatabaseConnection};
 
 use crate::{
     access_list::list_manager::AccessListManager,
+    discovery::discovery_service::DiscoveryService,
     entities::{address, topic},
     iroh::iroh_mem_instance::IrohMemInstance,
     protocol::{access_control::AccessControl, video_discovery::VideoDiscovery},
@@ -19,6 +20,7 @@ pub struct IrohRuntime {
     _router: Router,
     access_control: AccessControl,
     db: DatabaseConnection,
+    discovery: DiscoveryService,
 }
 
 impl IrohRuntime {
@@ -51,6 +53,8 @@ impl IrohRuntime {
 
         println!("Endpoint: {}", endpoint.id());
 
+        let discovery_service = DiscoveryService::new(endpoint.clone(), gossip.clone());
+
         let _router = Router::builder(endpoint)
             .accept(DOCS_ALPN, docs)
             .accept(GOSSIP_ALPN, gossip)
@@ -63,6 +67,7 @@ impl IrohRuntime {
             _router,
             access_control,
             db,
+            discovery: discovery_service,
         })
     }
 
@@ -90,6 +95,15 @@ impl IrohRuntime {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn start_adding_topic_peers(&self, topic: String) -> Result<(), Error> {
+        self.discovery.cancel_topic(&topic);
+        Ok(self.discovery.emit_topic(&topic, &self.db, false).await?)
+    }
+
+    pub fn stop_adding_topic_peers(&self, topic: String) -> bool {
+        self.discovery.cancel_topic(&topic)
     }
 
     pub async fn get_authorized_videos(&self, topic: String) -> Result<Option<Vec<String>>, Error> {

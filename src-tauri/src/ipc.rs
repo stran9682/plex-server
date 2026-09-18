@@ -15,12 +15,12 @@ pub async fn import_ticket(
 #[tauri::command]
 pub async fn add_remote_store(
     endpoint: String,
-    topic: String,
+    namespace: String,
     state: tauri::State<'_, IrohRuntime>,
 ) -> Result<(), Error> {
     let iroh_runtime = state.inner();
 
-    iroh_runtime.add_remote_store(endpoint, topic).await?;
+    iroh_runtime.add_remote_store(endpoint, namespace).await?;
 
     Ok(())
 }
@@ -33,4 +33,22 @@ pub async fn get_authorized_videos(
     let iroh_runtime = state.inner();
 
     Ok(iroh_runtime.get_authorized_videos(namespace).await?)
+}
+
+#[tauri::command]
+pub async fn start_adding_topic_peers(
+    namespace: String,
+    state: tauri::State<'_, IrohRuntime>,
+) -> Result<(), Error> {
+    let iroh_runtime = state.inner();
+    Ok(iroh_runtime.start_adding_topic_peers(namespace).await?)
+}
+
+#[tauri::command]
+pub async fn stop_adding_topic_peers(
+    namespace: String,
+    state: tauri::State<'_, IrohRuntime>,
+) -> Result<bool, Error> {
+    let iroh_runtime = state.inner();
+    Ok(iroh_runtime.stop_adding_topic_peers(namespace))
 }

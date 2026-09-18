@@ -1,5 +1,5 @@
+use std::collections::HashSet;
 use std::str::FromStr;
-use std::{any, collections::HashSet};
 
 use iroh::EndpointId;
 use iroh_docs::Entry;

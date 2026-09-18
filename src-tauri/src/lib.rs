@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
+use axum::{routing::get, Router};
 use sea_orm::{Database, DbErr};
 use tauri::Manager;
 
-use crate::iroh_runtime::IrohRuntime;
+use crate::iroh_runtime::{download_handler, IrohRuntime};
 
 mod access_list;
 mod discovery;
@@ -10,7 +13,6 @@ mod ipc;
 mod iroh;
 mod iroh_runtime;
 mod protocol;
-mod server;
 mod store;
 
 pub const ALPN: &[u8] = b"gate";
@@ -76,19 +78,20 @@ impl serde::Serialize for Error {
     }
 }
 
-async fn setup(app_handle: tauri::AppHandle) -> anyhow::Result<()> {
-    let path = app_handle.path().app_data_dir()?;
-    let db = Database::connect(format!(
-        "sqlite://{}db.sqlite?mode=rwc",
-        path.to_string_lossy()
-    ))
-    .await?;
+async fn setup(app_handle: tauri::AppHandle) -> anyhow::Result<Arc<IrohRuntime>> {
+    let db = Database::connect("sqlite::memory:").await?;
+    // let path = app_handle.path().app_data_dir()?;
+    // let db = Database::connect(format!(
+    //     "sqlite://{}db.sqlite?mode=rwc",
+    //     path.to_string_lossy()
+    // ))
+    // .await?;
 
-    let iroh = IrohRuntime::new(db).await?;
+    let iroh = Arc::new(IrohRuntime::new(db).await?);
 
-    app_handle.manage(iroh);
+    app_handle.manage(iroh.clone());
 
-    Ok(())
+    Ok(iroh)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -98,8 +101,19 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = setup(app_handle).await {
-                    eprintln!("failed, {}", e);
+                match setup(app_handle).await {
+                    Ok(iroh) => {
+                        let app = Router::new()
+                            .route("/", get(download_handler))
+                            .with_state(Arc::clone(&iroh));
+
+                        let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+
+                        axum::serve(listener, app).await.unwrap();
+                    }
+                    Err(e) => {
+                        eprintln!("error occured {}", e);
+                    }
                 }
             });
 

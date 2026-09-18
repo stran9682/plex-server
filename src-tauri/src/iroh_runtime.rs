@@ -1,20 +1,34 @@
 use std::str::FromStr;
+use std::sync::Arc;
 
 use iroh::{endpoint::presets, protocol::Router, Endpoint, EndpointId};
 use iroh_blobs::{store::mem::MemStore, BlobsProtocol, ALPN as BLOBS_ALPN};
 use iroh_docs::{protocol::Docs, DocTicket, ALPN as DOCS_ALPN};
 use iroh_gossip::{Gossip, ALPN as GOSSIP_ALPN};
 use sea_orm::{ActiveHasMany, ActiveValue::Set, DatabaseConnection};
+use serde::Deserialize;
+use tokio::fs::File;
 
 use crate::{
     access_list::list_manager::AccessListManager,
     discovery::discovery_service::DiscoveryService,
     entities::{address, topic},
     iroh::iroh_mem_instance::IrohMemInstance,
-    protocol::{access_control::AccessControl, video_discovery::VideoDiscovery},
+    protocol::{
+        access_control::{AccessControl, Request},
+        video_discovery::VideoDiscovery,
+    },
     store::storage_manager::StorageManager,
     Error, ALPN, DISCOVERY_ALPN,
 };
+
+use axum::{
+    body::Body,
+    extract::{Query, State},
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
+};
+use tokio_util::io::ReaderStream;
 
 pub struct IrohRuntime {
     _router: Router,
@@ -97,6 +111,33 @@ impl IrohRuntime {
         Ok(())
     }
 
+    pub async fn download_file(
+        &self,
+        namespace: &str,
+        resource: &str,
+        filename: &str,
+    ) -> anyhow::Result<Option<File>> {
+        let request = Request::new(
+            String::from(namespace),
+            String::from(resource),
+            String::from(filename),
+        );
+
+        let bootstraps = self.get_peer(namespace).await?;
+
+        for endpoint_id in bootstraps {
+            if let Ok(Some(file)) = self
+                .access_control
+                .make_request(Some(endpoint_id), &request)
+                .await
+            {
+                return Ok(Some(file));
+            }
+        }
+
+        Ok(None)
+    }
+
     pub async fn start_adding_topic_peers(&self, topic: String) -> Result<(), Error> {
         self.discovery.cancel_topic(&topic);
         Ok(self.discovery.emit_topic(&topic, &self.db, false).await?)
@@ -130,4 +171,68 @@ impl IrohRuntime {
 
         Ok(None)
     }
+
+    async fn get_peer(&self, topic: &str) -> Result<Vec<EndpointId>, Error> {
+        let topic: Vec<(topic::Model, Vec<address::Model>)> = topic::Entity::find_by_topic(topic)
+            .find_with_related(address::Entity)
+            .all(&self.db)
+            .await?;
+
+        let (_, addresses) = &topic[0];
+
+        let bootstrap: Vec<EndpointId> = addresses
+            .iter()
+            .filter_map(|i| EndpointId::from_str(&i.endpoint).ok())
+            .collect();
+
+        Ok(bootstrap)
+    }
+}
+
+#[derive(Deserialize)]
+pub struct RequestArgs {
+    namespace: String,
+    resource: String,
+    filename: String,
+}
+
+pub async fn download_handler(
+    Query(request_args): Query<RequestArgs>,
+    State(access_control_service): State<Arc<IrohRuntime>>,
+) -> impl IntoResponse {
+    let file = match access_control_service
+        .download_file(
+            &request_args.namespace,
+            &request_args.resource,
+            &request_args.filename,
+        )
+        .await
+    {
+        Ok(Some(file)) => file,
+        Ok(None) => {
+            return Response::builder()
+                .status(StatusCode::FORBIDDEN)
+                .body(Body::from(
+                    "Permission error or file hash didn't match resource",
+                ))
+                .unwrap();
+        }
+        Err(e) => {
+            return Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Body::from(format!("Network error occured, {e}")))
+                .unwrap();
+        }
+    };
+
+    let content_type = mime_guess::from_path(&request_args.filename).first_or_octet_stream();
+
+    let stream = ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, content_type.as_ref())
+        .body(body)
+        .unwrap()
 }

@@ -1,6 +1,6 @@
 h3 {
 	font-size: medium;
-    margin: 0;
+	margin: 0;
 }
 
 h2 {
@@ -10,6 +10,19 @@ h2 {
 input {
 	font-family: "Courier New", Courier, monospace;
 	margin-bottom: 2em;
+}
+
+.filepick-button {
+	margin-bottom: 2em;
+}
+
+.filepick-button:hover {
+	transform: scale(1);
+}
+
+.filepath {
+	font-family: "Courier New", Courier, monospace;
+	word-break: break-all
 }
 
 .menu {
@@ -38,6 +51,10 @@ button {
 	color: #ffffff;
 	border: 2px solid #ffffff;
 	padding: 12px 12px;
+}
+
+button:disabled {
+	display: none;
 }
 
 .popup {

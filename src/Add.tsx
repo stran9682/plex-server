@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import "./Add.css";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 
 enum Popup {
 	Ticket,
@@ -8,12 +9,21 @@ enum Popup {
 	Remote,
 }
 
+type ErrorKind = {
+	kind: 'databaseErr' | 'irohErr' | 'inputErr';
+	message: string;
+};
+
+
 function TicketPopup({ setPopup }: { setPopup: () => void }) {
 	const [ticket, setTicket] = useState<string>("");
+	const [error, setError] = useState<string | null>(null);
 
 	const importTicket = (ticket: string) => {
-		invoke("import_ticket", { ticket: ticket }).catch((error) =>
-			console.error(error),
+		invoke("import_ticket", { ticket: ticket })
+		.then(_ => setPopup())
+		.catch((error: ErrorKind) =>
+			setError(error.message)
 		);
 	};
 
@@ -26,6 +36,8 @@ function TicketPopup({ setPopup }: { setPopup: () => void }) {
 					value={ticket}
 					onChange={(e) => setTicket(e.target.value)}
 				/>
+
+				{error && <p style={{ color: "red", margin: "0 0 1em 0" }}>{error}</p>}
 
 				<div className="popup-actions">
 					<button disabled={ticket === ""} onClick={() => importTicket(ticket)}>
@@ -41,9 +53,12 @@ function TicketPopup({ setPopup }: { setPopup: () => void }) {
 function RemotePopup({ setPopup }: { setPopup: () => void }) {
 	const [endpoint, setEndpoint] = useState<string>("");
 	const [namespace, setNamespace] = useState<string>("");
+	const [error, setError] = useState<string | null>(null);
 
 	const importRemote = (endpoint: string, namespace: string) => {
-		invoke("add_remote_store", { endpoint: endpoint, namespace: namespace });
+		invoke("add_remote_store", { endpoint: endpoint, namespace: namespace })
+		.catch((error: ErrorKind) => setError(error.message))
+		.then(_ => setPopup());
 	};
 
 	return (
@@ -65,8 +80,10 @@ function RemotePopup({ setPopup }: { setPopup: () => void }) {
 					onChange={(e) => setNamespace(e.target.value)}
 				/>
 
+				{error && <p style={{ color: "red", margin: "0 0 1em 0" }}>{error}</p>}
+
 				<div className="popup-actions">
-					<button onClick={() => importRemote(endpoint, namespace)}>Add</button>
+					<button disabled = {endpoint === "" && namespace === ""} onClick={() => importRemote(endpoint, namespace)}>Add</button>
 					<button onClick={() => setPopup()}>Close</button>
 				</div>
 			</div>
@@ -75,14 +92,70 @@ function RemotePopup({ setPopup }: { setPopup: () => void }) {
 }
 
 function LocalPopup({ setPopup }: { setPopup: () => void }) {
-	const [filePath, setFilePath] = useState<string | string[] | null>(null);
+	const [filePath, setFilePath] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [namespace, setNamespace] = useState<string| null>(null);
+
+	const add_dir = () => {
+		invoke("add_remote_store", { file_path: filePath, namespace: namespace })
+		.catch((error: ErrorKind) => setError(error.message))
+		.then(_ => setPopup());
+	}
+
+	const handlePickFile = async () => {
+		try {
+			setError(null);
+
+			const selected = await open({
+				multiple: false,
+				directory: false,
+				filters: [
+					{
+						name: "Videos",
+						extensions: ["mp4"],
+					},
+				],
+			});
+
+			if (selected === null) {
+				console.log("User cancelled the file selection");
+				return;
+			}
+
+			setFilePath(selected);
+		} catch (err) {
+			console.error("Failed to open file picker:", err);
+			setError("Could not open file dialog. Check your permissions config.");
+		}
+	};
 
 	return (
 		<div className="popup">
 			<div className="popup-container">
+				<button className="filepick-button" onClick={handlePickFile}>Select a File</button>
+
+				{error && <p style={{ color: "red", marginTop: "10px" }}>{error}</p>}
+
+				{filePath && (<>
+					
+					<div>
+						<h3>Selected Path:</h3>
+							<div className="filepath"> 
+							{filePath}
+						</div>
+					</div>
+
+					<h3>Namespace</h3>
+					
+					<input
+						type="text"
+						placeholder="Optional"
+						onChange={(e) => setNamespace(e.target.value)}
+					/>
+				</>)}
+
 				<div className="popup-actions">
-					<button>Add</button>
+					<button disabled={filePath === null} onClick={() => add_dir()}>Add</button>
 					<button onClick={() => setPopup()}>Close</button>
 				</div>
 			</div>
@@ -118,7 +191,7 @@ function Add() {
 
 			<div className="menu-item">
 				<div className="menu-label">
-					<h3>Import Ticket</h3>
+					<h3>Import ticket</h3>
 					Sync a store with a peer
 				</div>
 

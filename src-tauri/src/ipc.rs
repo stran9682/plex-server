@@ -1,11 +1,11 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use crate::{iroh_runtime::IrohRuntime, Error};
 
 #[tauri::command]
 pub async fn import_ticket(
     ticket: String,
-    state: tauri::State<'_, IrohRuntime>,
+    state: tauri::State<'_, Arc<IrohRuntime>>,
 ) -> Result<(), Error> {
     let iroh_runtime = state.inner();
 
@@ -18,7 +18,7 @@ pub async fn import_ticket(
 pub async fn add_dir(
     file_path: PathBuf,
     namespace: Option<String>,
-    state: tauri::State<'_, IrohRuntime>,
+    state: tauri::State<'_, Arc<IrohRuntime>>,
 ) -> Result<(), Error> {
     let iroh_runtime = state.inner();
 
@@ -31,7 +31,7 @@ pub async fn add_dir(
 pub async fn add_remote_store(
     endpoint: String,
     namespace: String,
-    state: tauri::State<'_, IrohRuntime>,
+    state: tauri::State<'_, Arc<IrohRuntime>>,
 ) -> Result<(), Error> {
     let iroh_runtime = state.inner();
 
@@ -42,7 +42,7 @@ pub async fn add_remote_store(
 
 #[tauri::command]
 pub async fn get_authorized_videos(
-    state: tauri::State<'_, IrohRuntime>,
+    state: tauri::State<'_, Arc<IrohRuntime>>,
 ) -> Result<HashMap<String, Vec<String>>, Error> {
     let iroh_runtime = state.inner();
 
@@ -52,7 +52,7 @@ pub async fn get_authorized_videos(
 #[tauri::command]
 pub async fn start_adding_topic_peers(
     namespace: String,
-    state: tauri::State<'_, IrohRuntime>,
+    state: tauri::State<'_, Arc<IrohRuntime>>,
 ) -> Result<(), Error> {
     let iroh_runtime = state.inner();
     Ok(iroh_runtime.start_adding_topic_peers(namespace).await?)
@@ -61,7 +61,7 @@ pub async fn start_adding_topic_peers(
 #[tauri::command]
 pub async fn stop_adding_topic_peers(
     namespace: String,
-    state: tauri::State<'_, IrohRuntime>,
+    state: tauri::State<'_, Arc<IrohRuntime>>,
 ) -> Result<bool, Error> {
     let iroh_runtime = state.inner();
     Ok(iroh_runtime.stop_adding_topic_peers(namespace))

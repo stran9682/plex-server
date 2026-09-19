@@ -66,13 +66,12 @@ impl StorageManager {
         send.write_u32(request_len).await?;
         send.write_all(&request_bytes).await?;
 
-        let mut status_buf = [0u8; 1];
-        recv.read_exact(&mut status_buf).await?;
+        let status = recv.read_u8().await?;
 
-        if status_buf[0] != (Status::Allowed as u8) {
+        if status != (Status::Allowed as u8) {
             eprintln!(
                 "Failed to retrieve file: {:?}",
-                Status::try_from(status_buf[0]).unwrap_or(Status::UnknownError)
+                Status::try_from(status).unwrap_or(Status::UnknownError)
             );
 
             return Ok(None);

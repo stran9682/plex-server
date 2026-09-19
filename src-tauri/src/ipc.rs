@@ -16,13 +16,13 @@ pub async fn import_ticket(
 
 #[tauri::command]
 pub async fn add_dir(
-    file_path: PathBuf,
+    filepath: PathBuf,
     namespace: Option<String>,
     state: tauri::State<'_, Arc<IrohRuntime>>,
 ) -> Result<(), Error> {
     let iroh_runtime = state.inner();
 
-    iroh_runtime.add_dir(file_path, namespace).await?;
+    iroh_runtime.add_dir(filepath, namespace).await?;
 
     Ok(())
 }

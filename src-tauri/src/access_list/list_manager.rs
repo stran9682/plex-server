@@ -4,9 +4,11 @@ use std::str::FromStr;
 use iroh::EndpointId;
 use iroh_docs::Entry;
 use iroh_docs::{api::Doc, engine::LiveEvent, store::Query, DocTicket, NamespaceId};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_stream::StreamExt;
 
 use crate::iroh::iroh_mem_instance::IrohMemInstance;
+use crate::{Status, DISCOVERY_ALPN};
 
 #[derive(Debug, Clone)]
 pub struct AccessListManager {
@@ -92,6 +94,36 @@ impl AccessListManager {
         }
 
         Ok(None)
+    }
+
+    pub async fn request_authorized_videos(
+        &self,
+        namespace: &str,
+        endpoint_id: &EndpointId,
+    ) -> anyhow::Result<Option<Vec<String>>> {
+        let endpoint = self.iroh_instance.endpoint();
+
+        let conn = endpoint.connect(*endpoint_id, DISCOVERY_ALPN).await?;
+
+        let (mut send, mut recv) = conn.open_bi().await?;
+
+        send.write_u32(namespace.len() as u32).await?;
+        send.write_all(namespace.as_bytes()).await?;
+
+        let status = recv.read_u8().await?;
+        if status != (Status::Allowed as u8) {
+            eprintln!(
+                "Failed to retrieve file: {:?}",
+                Status::try_from(status).unwrap_or(Status::UnknownError)
+            );
+
+            return Ok(None);
+        }
+
+        let bytes = recv.read_to_end(usize::MAX).await?;
+        let authorized_videos: Vec<String> = serde_json::from_slice(&bytes)?;
+
+        Ok(Some(authorized_videos))
     }
 
     pub async fn get_authorized_videos(

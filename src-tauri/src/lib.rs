@@ -80,6 +80,9 @@ impl serde::Serialize for Error {
 
 async fn setup(app_handle: tauri::AppHandle) -> anyhow::Result<Arc<IrohRuntime>> {
     let db = Database::connect("sqlite::memory:").await?;
+    db.get_schema_registry(module_path!().split("::").next().unwrap())
+        .sync(&db)
+        .await?;
     // let path = app_handle.path().app_data_dir()?;
     // let db = Database::connect(format!(
     //     "sqlite://{}db.sqlite?mode=rwc",

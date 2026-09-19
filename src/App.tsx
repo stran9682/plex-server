@@ -1,7 +1,7 @@
 import { useState } from "react";
 import "./App.css";
-import Add from "./Add";
-import VideosPage from "./Videos";
+import Add from "./pages/Add";
+import VideosPage from "./pages/Videos";
 
 enum Page {
 	Videos = "Videos",

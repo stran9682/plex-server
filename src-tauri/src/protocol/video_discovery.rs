@@ -56,6 +56,7 @@ impl VideoDiscovery {
 
         let list_bytes = serde_json::to_vec(&list)?;
         send.write_all(&list_bytes).await?;
+        send.finish()?;
 
         Ok(())
     }

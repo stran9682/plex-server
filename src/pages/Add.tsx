@@ -1,5 +1,5 @@
 import { useState } from "react";
-import "./Add.css";
+import "../styles/Add.css";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
@@ -57,8 +57,8 @@ function RemotePopup({ setPopup }: { setPopup: () => void }) {
 
 	const importRemote = (endpoint: string, namespace: string) => {
 		invoke("add_remote_store", { endpoint: endpoint, namespace: namespace })
-		.catch((error: ErrorKind) => setError(error.message))
-		.then(_ => setPopup());
+		.then(() => setPopup())
+		.catch((error: ErrorKind) => setError(error.message));
 	};
 
 	return (
@@ -92,12 +92,12 @@ function RemotePopup({ setPopup }: { setPopup: () => void }) {
 }
 
 function LocalPopup({ setPopup }: { setPopup: () => void }) {
-	const [filePath, setFilePath] = useState<string | null>(null);
+	const [filepath, setFilepath] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [namespace, setNamespace] = useState<string| null>(null);
 
 	const add_dir = () => {
-		invoke("add_remote_store", { file_path: filePath, namespace: namespace })
+		invoke("add_remote_store", { filepath: filepath, namespace: namespace })
 		.catch((error: ErrorKind) => setError(error.message))
 		.then(_ => setPopup());
 	}
@@ -122,7 +122,7 @@ function LocalPopup({ setPopup }: { setPopup: () => void }) {
 				return;
 			}
 
-			setFilePath(selected);
+			setFilepath(selected);
 		} catch (err) {
 			console.error("Failed to open file picker:", err);
 			setError("Could not open file dialog. Check your permissions config.");
@@ -136,12 +136,12 @@ function LocalPopup({ setPopup }: { setPopup: () => void }) {
 
 				{error && <p style={{ color: "red", marginTop: "10px" }}>{error}</p>}
 
-				{filePath && (<>
+				{filepath && (<>
 					
 					<div>
 						<h3>Selected Path:</h3>
 							<div className="filepath"> 
-							{filePath}
+							{filepath}
 						</div>
 					</div>
 
@@ -155,7 +155,7 @@ function LocalPopup({ setPopup }: { setPopup: () => void }) {
 				</>)}
 
 				<div className="popup-actions">
-					<button disabled={filePath === null} onClick={() => add_dir()}>Add</button>
+					<button disabled={filepath === null} onClick={() => add_dir()}>Add</button>
 					<button onClick={() => setPopup()}>Close</button>
 				</div>
 			</div>

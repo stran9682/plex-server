@@ -216,6 +216,8 @@ impl IrohRuntime {
             }
         }
 
+        println!("{}", namespace_videos.len());
+
         Ok(namespace_videos)
     }
 

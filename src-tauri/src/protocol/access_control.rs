@@ -186,7 +186,7 @@ impl AccessControl {
     ) -> anyhow::Result<Option<Vec<String>>> {
         Ok(self
             .list_manager
-            .get_authorized_videos(namespace, endpoint_id)
+            .request_authorized_videos(namespace, endpoint_id)
             .await?)
     }
 }

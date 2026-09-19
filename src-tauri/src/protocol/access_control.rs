@@ -179,7 +179,7 @@ impl AccessControl {
         Ok(())
     }
 
-    pub async fn get_authorized_videos(
+    pub async fn request_authorized_videos(
         &self,
         namespace: &str,
         endpoint_id: &EndpointId,

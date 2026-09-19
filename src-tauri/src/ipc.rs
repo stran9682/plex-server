@@ -41,12 +41,12 @@ pub async fn add_remote_store(
 }
 
 #[tauri::command]
-pub async fn get_authorized_videos(
+pub async fn request_authorized_videos(
     state: tauri::State<'_, Arc<IrohRuntime>>,
 ) -> Result<HashMap<String, Vec<String>>, Error> {
     let iroh_runtime = state.inner();
 
-    Ok(iroh_runtime.get_authorized_videos().await?)
+    Ok(iroh_runtime.request_authorized_videos().await?)
 }
 
 #[tauri::command]

@@ -192,7 +192,7 @@ impl IrohRuntime {
         self.discovery.cancel_topic(&topic)
     }
 
-    pub async fn get_authorized_videos(&self) -> Result<HashMap<String, Vec<String>>, Error> {
+    pub async fn request_authorized_videos(&self) -> Result<HashMap<String, Vec<String>>, Error> {
         let topic: Vec<(topic::Model, Vec<address::Model>)> = topic::Entity::find()
             .find_with_related(address::Entity)
             .all(&self.db)
@@ -204,19 +204,18 @@ impl IrohRuntime {
                 let endpoint = EndpointId::from_str(&address.endpoint)
                     .map_err(|e| Error::InputErr(e.to_string()))?;
 
-                if let Some(videos) = self
+                if let Ok(Some(videos)) = self
                     .access_control
-                    .get_authorized_videos(&namespace.topic, &endpoint)
+                    .request_authorized_videos(&namespace.topic, &endpoint)
                     .await
-                    .map_err(|e| Error::IrohErr(e.to_string()))?
                 {
                     namespace_videos.insert(namespace.topic, videos);
                     break;
+                } else {
+                    continue;
                 }
             }
         }
-
-        println!("{}", namespace_videos.len());
 
         Ok(namespace_videos)
     }

@@ -129,7 +129,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ipc::import_ticket,
             ipc::add_remote_store,
-            ipc::get_authorized_videos,
+            ipc::request_authorized_videos,
             ipc::start_adding_topic_peers,
             ipc::stop_adding_topic_peers,
             ipc::add_dir,

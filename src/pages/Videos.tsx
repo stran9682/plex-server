@@ -38,7 +38,7 @@ function VideosPage() {
 	}
 
 	useEffect(() => {
-		invoke<Videos>('get_authorized_videos')
+		invoke<Videos>('request_authorized_videos')
 		.then((videos) => setVideos(videos))
 		.catch((e: ErrorKind) => setError(e.message))
 	}, [])
@@ -47,7 +47,7 @@ function VideosPage() {
 		<div>
 			<h1>Videos</h1>
 
-			{ error !== null ? 
+			{ error ? 
 				<p style={{ color: "red", margin: "0 0 1em 0" }}>{error}</p> :
 				renderContent()
 			}

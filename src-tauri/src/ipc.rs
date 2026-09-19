@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 use crate::{iroh_runtime::IrohRuntime, Error};
 
@@ -42,12 +42,11 @@ pub async fn add_remote_store(
 
 #[tauri::command]
 pub async fn get_authorized_videos(
-    namespace: String,
     state: tauri::State<'_, IrohRuntime>,
-) -> Result<Option<Vec<String>>, Error> {
+) -> Result<HashMap<String, Vec<String>>, Error> {
     let iroh_runtime = state.inner();
 
-    Ok(iroh_runtime.get_authorized_videos(namespace).await?)
+    Ok(iroh_runtime.get_authorized_videos().await?)
 }
 
 #[tauri::command]

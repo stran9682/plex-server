@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::{path::PathBuf, str::FromStr};
 
@@ -6,6 +7,7 @@ use iroh::{endpoint::presets, protocol::Router, Endpoint, EndpointId};
 use iroh_blobs::{store::mem::MemStore, BlobsProtocol, ALPN as BLOBS_ALPN};
 use iroh_docs::{protocol::Docs, DocTicket, ALPN as DOCS_ALPN};
 use iroh_gossip::{Gossip, ALPN as GOSSIP_ALPN};
+use sea_orm::EntityTrait;
 use sea_orm::{ActiveHasMany, ActiveValue::Set, DatabaseConnection};
 use serde::Deserialize;
 use tempfile::TempDir;
@@ -190,29 +192,31 @@ impl IrohRuntime {
         self.discovery.cancel_topic(&topic)
     }
 
-    pub async fn get_authorized_videos(&self, topic: String) -> Result<Option<Vec<String>>, Error> {
-        let topic: Vec<(topic::Model, Vec<address::Model>)> = topic::Entity::find_by_topic(topic)
+    pub async fn get_authorized_videos(&self) -> Result<HashMap<String, Vec<String>>, Error> {
+        let topic: Vec<(topic::Model, Vec<address::Model>)> = topic::Entity::find()
             .find_with_related(address::Entity)
             .all(&self.db)
             .await?;
 
-        let (namespace, addresses) = &topic[0];
+        let mut namespace_videos: HashMap<String, Vec<String>> = HashMap::new();
+        for (namespace, addresses) in topic {
+            for address in addresses {
+                let endpoint = EndpointId::from_str(&address.endpoint)
+                    .map_err(|e| Error::InputErr(e.to_string()))?;
 
-        for address in addresses {
-            let endpoint = EndpointId::from_str(&address.endpoint)
-                .map_err(|e| Error::InputErr(e.to_string()))?;
-
-            if let Some(videos) = self
-                .access_control
-                .get_authorized_videos(&namespace.topic, &endpoint)
-                .await
-                .map_err(|e| Error::IrohErr(e.to_string()))?
-            {
-                return Ok(Some(videos));
+                if let Some(videos) = self
+                    .access_control
+                    .get_authorized_videos(&namespace.topic, &endpoint)
+                    .await
+                    .map_err(|e| Error::IrohErr(e.to_string()))?
+                {
+                    namespace_videos.insert(namespace.topic, videos);
+                    break;
+                }
             }
         }
 
-        Ok(None)
+        Ok(namespace_videos)
     }
 
     async fn get_peer(&self, topic: &str) -> Result<Vec<EndpointId>, Error> {

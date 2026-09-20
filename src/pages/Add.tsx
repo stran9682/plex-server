@@ -99,7 +99,7 @@ function LocalPopup({ setPopup }: { setPopup: () => void }) {
 	const add_dir = () => {
 		invoke("add_remote_store", { filepath: filepath, namespace: namespace })
 		.catch((error: ErrorKind) => setError(error.message))
-		.then(_ => setPopup());
+		.then(() => setPopup());
 	}
 
 	const handlePickFile = async () => {

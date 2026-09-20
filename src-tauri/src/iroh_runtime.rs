@@ -27,7 +27,7 @@ use crate::{
 
 use axum::{
     body::Body,
-    extract::{Query, State},
+    extract::{Path, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -115,7 +115,7 @@ impl IrohRuntime {
             .map_err(|e| Error::InputErr(format!("Failed to create temp dir {e}")))?;
 
         let args = format!(
-            "-codec: copy -start_number 0 -hls_time 10 -hls_list_size 0 -f hls {}/output.m3u8",
+            "-codec: copy -start_number 1 -hls_time 10 -hls_list_size 0 -f hls {}/playlist.m3u8",
             temp_dir.path().to_string_lossy()
         );
         let mut command = FfmpegCommand::new()
@@ -173,6 +173,7 @@ impl IrohRuntime {
                 .make_request(Some(endpoint_id), &request)
                 .await
             {
+                println!("got the file!");
                 return Ok(Some(file));
             }
         }
@@ -244,10 +245,12 @@ pub struct RequestArgs {
 }
 
 pub async fn download_handler(
-    Query(request_args): Query<RequestArgs>,
-    State(access_control_service): State<Arc<IrohRuntime>>,
+    Path(request_args): Path<RequestArgs>,
+    State(iroh_runtime): State<Arc<IrohRuntime>>,
 ) -> impl IntoResponse {
-    let file = match access_control_service
+    println!("Got a request!");
+
+    let file = match iroh_runtime
         .download_file(
             &request_args.namespace,
             &request_args.resource,

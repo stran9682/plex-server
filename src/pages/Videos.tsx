@@ -2,45 +2,48 @@ import { useEffect, useState } from "react";
 import "../styles/Videos.css";
 import { invoke } from "@tauri-apps/api/core";
 
-
 type ErrorKind = {
-	kind: 'databaseErr' | 'irohErr' | 'inputErr';
+	kind: "databaseErr" | "irohErr" | "inputErr";
 	message: string;
 };
 
 interface VideoInfo {
-	tag: string,
-	videoName: string
+	tag: string;
+	videoName: string;
 }
 
 type Videos = Record<string, VideoInfo[]>;
 
 function VideosPage() {
 	const [videos, setVideos] = useState<Videos>()
-	const [error, setError] = useState<string | null>(null)
+	const [error, setError] = useState<string | null>(null);
+	const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
 
-	const renderContent = () => {
-		if (videos === undefined) return <div>
-			Loading!
-		</div>
+	const renderList = () => {
+		if (videos === undefined) return <div>Loading!</div>
 
 		const videoEntries = Object.entries(videos);
 
-		if (videoEntries.length === 0) return <div>
-			No videos found, go add some?
-		</div>
+		if (videoEntries.length === 0)
+			return <div>No videos found, go add some?</div>
 
-		return <div>
-			{videoEntries.map(([namespace, filenames]) => (
-				<div key={namespace}>
-					<h2>{namespace.substring(0, 10)}</h2>
-					<ol>
-						{filenames.map((video) => <li key={video.tag}>{video.videoName}</li>)}
-					</ol>
-				</div>
-			))}
-		</div>
-	}
+		return (
+			<div>
+				{videoEntries.map(([namespace, filenames]) => (
+					<div key={namespace}>
+						<h2>{namespace.substring(0, 10)}</h2>
+						<ol>
+							{filenames.map((video) => (<>
+									<li onClick = {() => setSelectedVideo(video.tag)} key={video.tag}>{video.videoName}</li>
+									{video.tag}
+								</>
+							))}
+						</ol>
+					</div>
+				))}
+			</div>
+		);
+	};
 
 	useEffect(() => {
 		invoke<Videos>('request_authorized_videos')
@@ -48,16 +51,32 @@ function VideosPage() {
 		.catch((e: ErrorKind) => setError(e.message))
 	}, [])
 
+	const videoPlayer = () => {
+		if (selectedVideo === null) return
+
+		const [namespace, resource] = selectedVideo.split("/")
+
+		const playlist = `http://127.0.0.1:3000/video/${encodeURIComponent(namespace)}/${encodeURIComponent(resource)}/playlist.m3u8`
+
+		return <video
+			src={playlist}
+			controls
+			width="640"
+			playsInline
+		/>
+	}
+
 	return (
 		<div>
 			<h1>Videos</h1>
 
-			{ error ? 
-				<p style={{ color: "red", margin: "0 0 1em 0" }}>{error}</p> :
-				renderContent()
-			}
+			{selectedVideo && videoPlayer()}
 
-			
+			{error ? (
+				<p style={{ color: "red", margin: "0 0 1em 0" }}>{error}</p>
+			) : (
+				renderList()
+			)}
 		</div>
 	);
 }

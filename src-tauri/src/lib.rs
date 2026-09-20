@@ -4,6 +4,7 @@ use axum::{routing::get, Router};
 use sea_orm::{Database, DbErr};
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::iroh_runtime::{download_handler, IrohRuntime};
 
@@ -117,11 +118,22 @@ pub fn run() {
 
                 match setup(app_handle).await {
                     Ok(iroh) => {
+                        let cors = CorsLayer::new()
+                            .allow_origin(Any)
+                            .allow_methods(Any)
+                            .allow_headers(Any);
+
                         let app = Router::new()
-                            .route("/", get(download_handler))
+                            .route(
+                                "/video/{namespace}/{resource}/{filename}",
+                                get(download_handler),
+                            )
+                            .layer(cors)
                             .with_state(Arc::clone(&iroh));
 
-                        let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+                        let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+                            .await
+                            .unwrap();
                         println!("Successfully setup");
 
                         axum::serve(listener, app).await.unwrap();

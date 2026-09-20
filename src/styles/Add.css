@@ -22,7 +22,7 @@ input {
 
 .filepath {
 	font-family: "Courier New", Courier, monospace;
-	word-break: break-all
+	word-break: break-all;
 }
 
 .menu {

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use crate::{iroh_runtime::IrohRuntime, Error};
+use crate::{iroh_runtime::IrohRuntime, Error, VideoInfo};
 
 #[tauri::command]
 pub async fn import_ticket(
@@ -43,7 +43,7 @@ pub async fn add_remote_store(
 #[tauri::command]
 pub async fn request_authorized_videos(
     state: tauri::State<'_, Arc<IrohRuntime>>,
-) -> Result<HashMap<String, Vec<String>>, Error> {
+) -> Result<HashMap<String, Vec<VideoInfo>>, Error> {
     let iroh_runtime = state.inner();
 
     Ok(iroh_runtime.request_authorized_videos().await?)

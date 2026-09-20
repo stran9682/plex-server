@@ -8,7 +8,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_stream::StreamExt;
 
 use crate::iroh::iroh_mem_instance::IrohMemInstance;
-use crate::{Status, DISCOVERY_ALPN};
+use crate::{Status, VideoInfo, DISCOVERY_ALPN};
 
 #[derive(Debug, Clone)]
 pub struct AccessListManager {
@@ -100,7 +100,7 @@ impl AccessListManager {
         &self,
         namespace: &str,
         endpoint_id: &EndpointId,
-    ) -> anyhow::Result<Option<Vec<String>>> {
+    ) -> anyhow::Result<Option<Vec<VideoInfo>>> {
         let endpoint = self.iroh_instance.endpoint();
 
         let conn = endpoint.connect(*endpoint_id, DISCOVERY_ALPN).await?;
@@ -121,7 +121,7 @@ impl AccessListManager {
         }
 
         let bytes = recv.read_to_end(usize::MAX).await?;
-        let authorized_videos: Vec<String> = serde_json::from_slice(&bytes)?;
+        let authorized_videos: Vec<VideoInfo> = serde_json::from_slice(&bytes)?;
 
         Ok(Some(authorized_videos))
     }

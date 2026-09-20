@@ -14,15 +14,13 @@ use tempfile::TempDir;
 use tokio::fs::File;
 
 use crate::Error::IrohErr;
+use crate::VideoInfo;
 use crate::{
     access_list::list_manager::AccessListManager,
     discovery::discovery_service::DiscoveryService,
     entities::{address, topic},
     iroh::iroh_mem_instance::IrohMemInstance,
-    protocol::{
-        access_control::{AccessControl, Request},
-        video_discovery::VideoDiscovery,
-    },
+    protocol::access_control::{AccessControl, Request},
     store::storage_manager::StorageManager,
     Error, ALPN, DISCOVERY_ALPN,
 };
@@ -60,7 +58,6 @@ impl IrohRuntime {
             IrohMemInstance::new(access_list_blobs.clone(), docs.clone(), endpoint.clone());
 
         let list_manager = AccessListManager::new(acl_iroh_instance);
-        let video_discovery = VideoDiscovery::new(list_manager.clone());
 
         let storage_blobs = MemStore::new();
         let storage_iroh_instance =
@@ -79,7 +76,7 @@ impl IrohRuntime {
             .accept(GOSSIP_ALPN, gossip)
             .accept(BLOBS_ALPN, BlobsProtocol::new(&access_list_blobs, None))
             .accept(ALPN, access_control.clone())
-            .accept(DISCOVERY_ALPN, video_discovery)
+            .accept(DISCOVERY_ALPN, access_control.clone())
             .spawn();
 
         Ok(Self {
@@ -192,13 +189,15 @@ impl IrohRuntime {
         self.discovery.cancel_topic(&topic)
     }
 
-    pub async fn request_authorized_videos(&self) -> Result<HashMap<String, Vec<String>>, Error> {
+    pub async fn request_authorized_videos(
+        &self,
+    ) -> Result<HashMap<String, Vec<VideoInfo>>, Error> {
         let topic: Vec<(topic::Model, Vec<address::Model>)> = topic::Entity::find()
             .find_with_related(address::Entity)
             .all(&self.db)
             .await?;
 
-        let mut namespace_videos: HashMap<String, Vec<String>> = HashMap::new();
+        let mut namespace_videos: HashMap<String, Vec<VideoInfo>> = HashMap::new();
         for (namespace, addresses) in topic {
             for address in addresses {
                 let endpoint = EndpointId::from_str(&address.endpoint)

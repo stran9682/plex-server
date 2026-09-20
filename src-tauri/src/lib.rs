@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use axum::{routing::get, Router};
 use sea_orm::{Database, DbErr};
+use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 use crate::iroh_runtime::{download_handler, IrohRuntime};
@@ -61,6 +62,13 @@ enum ErrorKind {
     DatabaseErr(String),
     IrohErr(String),
     InputErr(String),
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoInfo {
+    pub tag: String,
+    pub video_name: String,
 }
 
 impl serde::Serialize for Error {

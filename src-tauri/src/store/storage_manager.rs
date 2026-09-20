@@ -16,7 +16,8 @@ use tokio::{
 use tokio_util::io::ReaderStream;
 
 use crate::{
-    iroh::iroh_mem_instance::IrohMemInstance, protocol::access_control::Request, Status, ALPN,
+    iroh::iroh_mem_instance::IrohMemInstance, protocol::access_control::Request, Status, VideoInfo,
+    ALPN,
 };
 
 #[derive(Debug, Clone)]
@@ -247,6 +248,28 @@ impl StorageManager {
         }
 
         Ok(())
+    }
+
+    pub async fn get_filenames(&self, tags: &Vec<String>) -> anyhow::Result<Vec<VideoInfo>> {
+        let mut files: Vec<VideoInfo> = Vec::new();
+        for tag in tags {
+            let Some(entry) = self.iroh_instance.blobs().tags().get(tag).await? else {
+                continue;
+            };
+
+            let Ok(bytes) = self.iroh_instance.blobs().get_bytes(entry.hash).await else {
+                continue;
+            };
+
+            if let Ok(video_metadata) = serde_json::from_slice::<VideoMetadata>(&bytes) {
+                files.push(VideoInfo {
+                    tag: tag.clone(),
+                    video_name: video_metadata.video_name,
+                });
+            }
+        }
+
+        Ok(files)
     }
 }
 

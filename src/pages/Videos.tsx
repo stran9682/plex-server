@@ -8,7 +8,12 @@ type ErrorKind = {
 	message: string;
 };
 
-type Videos = Record<string, string[]>;
+interface VideoInfo {
+	tag: string,
+	videoName: string
+}
+
+type Videos = Record<string, VideoInfo[]>;
 
 function VideosPage() {
 	const [videos, setVideos] = useState<Videos>()
@@ -28,10 +33,10 @@ function VideosPage() {
 		return <div>
 			{videoEntries.map(([namespace, filenames]) => (
 				<div key={namespace}>
-					<h2>{namespace}</h2>
-					<ul>
-						{filenames.map((filename) => <li key={filename}>{filename}</li>)}
-					</ul>
+					<h2>{namespace.substring(0, 10)}</h2>
+					<ol>
+						{filenames.map((video) => <li key={video.tag}>{video.videoName}</li>)}
+					</ol>
 				</div>
 			))}
 		</div>

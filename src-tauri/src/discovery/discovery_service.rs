@@ -68,7 +68,7 @@ impl DiscoveryService {
         let send_token = token.clone();
 
         let peer_rx = if emit {
-            let peer_tx = self.emit(&topic_id.to_string(), sender, send_token);
+            let peer_tx = self.emit(&topic_id, sender, send_token);
 
             Some(peer_tx)
         } else {

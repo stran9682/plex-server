@@ -8,10 +8,10 @@ use iroh::{endpoint::SendStream, EndpointId};
 use iroh_blobs::HashAndFormat;
 use rs_merkle::{algorithms::Sha256, MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
-use tempfile::tempfile;
+use tempfile::{tempfile, TempDir};
 use tokio::{
     fs::File,
-    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, SeekFrom},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, SeekFrom},
 };
 use tokio_util::io::ReaderStream;
 
@@ -272,6 +272,66 @@ impl StorageManager {
         }
 
         Ok(files)
+    }
+
+    pub async fn replicate(
+        &self,
+        namespace: &str,
+        resource: &str,
+        video_name: &str,
+        endpoint_id: EndpointId,
+    ) -> anyhow::Result<bool> {
+        println!("replicating!");
+
+        let Some(mut file) = self
+            .retreive_remote(
+                endpoint_id,
+                &Request::new(
+                    namespace.to_string(),
+                    resource.to_string(),
+                    "playlist.m3u8".into(),
+                ),
+            )
+            .await?
+        else {
+            return Ok(false);
+        };
+
+        let temp_dir = TempDir::new()?;
+
+        let playlist = temp_dir.path().join("playlist.m3u8");
+        let mut playlist_file = File::create(&playlist).await?;
+        tokio::io::copy(&mut file, &mut playlist_file).await?;
+
+        let mut lines = BufReader::new(File::open(playlist).await?).lines();
+        while let Some(filename) = lines.next_line().await? {
+            if filename.starts_with('#') || filename.is_empty() {
+                continue;
+            }
+
+            let Some(mut file) = self
+                .retreive_remote(
+                    endpoint_id,
+                    &Request::new(
+                        namespace.to_string(),
+                        resource.to_string(),
+                        filename.clone(),
+                    ),
+                )
+                .await?
+            else {
+                return Ok(false);
+            };
+
+            println!("Replicating: {}", filename);
+            let mut output = File::create(temp_dir.path().join(filename)).await?;
+            tokio::io::copy(&mut file, &mut output).await?;
+        }
+
+        self.upload_dir(&temp_dir.path().to_string_lossy(), video_name, namespace)
+            .await?;
+
+        Ok(true)
     }
 }
 

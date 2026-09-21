@@ -54,6 +54,9 @@ enum Error {
 
     #[error("Iroh had an error, {0}")]
     IrohErr(String),
+
+    #[error(transparent)]
+    IOErr(#[from] std::io::Error),
 }
 
 #[derive(serde::Serialize)]
@@ -63,6 +66,7 @@ enum ErrorKind {
     DatabaseErr(String),
     IrohErr(String),
     InputErr(String),
+    IOErr(String),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -82,6 +86,7 @@ impl serde::Serialize for Error {
             Self::DatabaseErr(_) => ErrorKind::DatabaseErr(error_message),
             Self::IrohErr(_) => ErrorKind::IrohErr(error_message),
             Self::InputErr(_) => ErrorKind::InputErr(error_message),
+            Self::IOErr(_) => ErrorKind::IOErr(error_message),
         };
         error_kind.serialize(serializer)
     }

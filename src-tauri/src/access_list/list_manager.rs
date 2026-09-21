@@ -129,7 +129,7 @@ impl AccessListManager {
     pub async fn get_authorized_videos(
         &self,
         namespace: &str,
-        endpoint_id: &EndpointId,
+        endpoint_id: Option<&EndpointId>,
     ) -> anyhow::Result<Option<Vec<String>>> {
         if let Some(doc) = self
             .iroh_instance
@@ -137,6 +137,11 @@ impl AccessListManager {
             .open(NamespaceId::from_str(namespace)?)
             .await?
         {
+            let endpoint_id = match endpoint_id {
+                Some(endpoint_id) => endpoint_id,
+                None => &self.iroh_instance.endpoint().id(),
+            };
+
             let entries = doc.get_many(Query::single_latest_per_key().build()).await?;
             let mut entries: Vec<Result<Entry, anyhow::Error>> = entries.collect().await;
             let mut entries = entries.iter_mut();
@@ -164,9 +169,9 @@ impl AccessListManager {
                 }
             }
 
-            return Ok(Some(authorized_videos));
+            Ok(Some(authorized_videos))
         } else {
-            return Ok(None);
+            Ok(None)
         }
     }
 

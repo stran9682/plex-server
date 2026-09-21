@@ -126,7 +126,8 @@ impl IrohRuntime {
 
         command.iter().unwrap();
 
-        self.access_control
+        let doc = self
+            .access_control
             .upload_new(
                 &temp_dir.path().to_string_lossy(),
                 &filename.to_string_lossy(),
@@ -134,6 +135,8 @@ impl IrohRuntime {
             )
             .await
             .map_err(|e| IrohErr(e.to_string()))?;
+
+        self.access_control.replicate(doc);
 
         Ok(())
     }
@@ -183,7 +186,7 @@ impl IrohRuntime {
 
     pub async fn start_adding_topic_peers(&self, topic: String) -> Result<(), Error> {
         self.discovery.cancel_topic(&topic);
-        Ok(self.discovery.emit_topic(&topic, &self.db, false).await?)
+        self.discovery.emit_topic(&topic, &self.db, false).await
     }
 
     pub fn stop_adding_topic_peers(&self, topic: String) -> bool {

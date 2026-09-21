@@ -1,4 +1,7 @@
-use std::io::{self, ErrorKind};
+use std::{
+    io::{self, ErrorKind},
+    vec,
+};
 
 use anyhow::bail;
 use iroh::{
@@ -6,9 +9,10 @@ use iroh::{
     protocol::{AcceptError, ProtocolHandler},
     EndpointId,
 };
-use iroh_docs::{api::Doc, DocTicket};
+use iroh_docs::{api::Doc, engine::LiveEvent, DocTicket};
 use serde::{Deserialize, Serialize};
 use tokio::{fs::File, io::AsyncReadExt};
+use tokio_stream::StreamExt;
 
 use crate::{
     access_list::list_manager::AccessListManager, store::storage_manager::StorageManager, Status,
@@ -164,7 +168,7 @@ impl AccessControl {
 
         let Some(list) = self
             .list_manager
-            .get_authorized_videos(&namespace, &endpoint_id)
+            .get_authorized_videos(&namespace, Some(&endpoint_id))
             .await?
         else {
             send.write(&[Status::FileNotFound as u8]).await?;
@@ -233,7 +237,8 @@ impl AccessControl {
             .append_access_list(&doc, None, &self.endpoint_id)
             .await?;
 
-        // todo!("Sync blobs");
+        self.replicate_handler(&doc).await?;
+        self.replicate(doc);
 
         Ok(())
     }
@@ -243,10 +248,64 @@ impl AccessControl {
         namespace: &str,
         endpoint_id: &EndpointId,
     ) -> anyhow::Result<Option<Vec<VideoInfo>>> {
-        Ok(self
-            .list_manager
+        self.list_manager
             .request_authorized_videos(namespace, endpoint_id)
-            .await?)
+            .await
+    }
+
+    pub fn replicate(&self, doc: Doc) {
+        let access_control = self.clone();
+
+        tokio::spawn(async move {
+            let mut events = doc.subscribe().await.unwrap();
+
+            while let Some(event) = events.next().await {
+                if let Ok(LiveEvent::ContentReady { .. }) = event {
+                    match access_control.replicate_handler(&doc).await {
+                        Ok(_) => println!("Replicated"),
+                        Err(e) => eprintln!("Couldn't replicate... {}", e),
+                    }
+                }
+            }
+        });
+    }
+
+    // this is very aggressive and will search through everything
+    async fn replicate_handler(&self, doc: &Doc) -> anyhow::Result<()> {
+        println!("Replicating handler");
+
+        let Some(peers) = doc.get_sync_peers().await? else {
+            bail!("No sync peers found");
+        };
+        let namespace = doc.id().to_string();
+
+        'peer: for peer_bytes in peers {
+            let endpoint_id = EndpointId::from_bytes(&peer_bytes)?;
+
+            let Ok(Some(videos)) = self
+                .request_authorized_videos(&namespace, &endpoint_id)
+                .await
+            else {
+                println!("Peer was unavailable");
+                continue;
+            };
+
+            for video_info in videos {
+                let args: Vec<&str> = video_info.tag.split('/').collect();
+                let resource = args[1].to_owned();
+
+                if !self
+                    .storage_manager
+                    .replicate(&namespace, &resource, &video_info.video_name, endpoint_id)
+                    .await
+                    .is_ok_and(|x| x)
+                {
+                    continue 'peer;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

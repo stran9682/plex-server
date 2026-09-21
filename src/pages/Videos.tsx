@@ -14,6 +14,30 @@ interface VideoInfo {
 
 type Videos = Record<string, VideoInfo[]>;
 
+const VideoPlayer = ({selectedVideo} : {selectedVideo:string}) => {
+	const [namespace, resource] = selectedVideo.split("/")
+
+	useEffect(() => {
+		invoke('start_adding_topic_peers', {namespace: namespace})
+		.catch((e) => console.error(e))
+
+		return () => {
+			invoke('stop_adding_topic_peers', {namespace: namespace})
+			.catch((e) => console.error(e))
+		};
+	}, [selectedVideo])
+
+	const playlist = `http://127.0.0.1:3000/video/${encodeURIComponent(namespace)}/${encodeURIComponent(resource)}/playlist.m3u8`
+
+	return <video
+		src={playlist}
+		controls
+		width="640"
+		playsInline
+	/>
+}
+
+
 function VideosPage() {
 	const [videos, setVideos] = useState<Videos>()
 	const [error, setError] = useState<string | null>(null);
@@ -51,26 +75,11 @@ function VideosPage() {
 		.catch((e: ErrorKind) => setError(e.message))
 	}, [])
 
-	const videoPlayer = () => {
-		if (selectedVideo === null) return
-
-		const [namespace, resource] = selectedVideo.split("/")
-
-		const playlist = `http://127.0.0.1:3000/video/${encodeURIComponent(namespace)}/${encodeURIComponent(resource)}/playlist.m3u8`
-
-		return <video
-			src={playlist}
-			controls
-			width="640"
-			playsInline
-		/>
-	}
-
 	return (
 		<div>
 			<h1>Videos</h1>
 
-			{selectedVideo && videoPlayer()}
+			{selectedVideo && <VideoPlayer selectedVideo={selectedVideo}/>}
 
 			{error ? (
 				<p style={{ color: "red", margin: "0 0 1em 0" }}>{error}</p>

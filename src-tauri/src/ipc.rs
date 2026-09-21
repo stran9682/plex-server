@@ -46,7 +46,7 @@ pub async fn request_authorized_videos(
 ) -> Result<HashMap<String, Vec<VideoInfo>>, Error> {
     let iroh_runtime = state.inner();
 
-    Ok(iroh_runtime.request_authorized_videos().await?)
+    iroh_runtime.request_authorized_videos().await
 }
 
 #[tauri::command]
